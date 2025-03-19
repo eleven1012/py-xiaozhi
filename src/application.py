@@ -109,7 +109,7 @@ class Application:
         asyncio.run_coroutine_threadsafe(self._initialize_without_connect(), self.loop)
 
         # 初始化物联网设备
-        self._initialize_iot_devices()
+        # self._initialize_iot_devices()
 
         # 启动主循环线程
         main_loop_thread = threading.Thread(target=self._main_loop)
@@ -351,7 +351,7 @@ class Application:
                 data = json.loads(json_data)
             else:
                 data = json_data
-
+            logger.info(f"--------xc---------收到JSON数据: {data}")
             # 处理不同类型的消息
             msg_type = data.get("type", "")
             if msg_type == "tts":
@@ -454,12 +454,12 @@ class Application:
         self.schedule(lambda: self._start_audio_streams())
         
         # 发送物联网设备描述符
-        from src.iot.thing_manager import ThingManager
-        thing_manager = ThingManager.get_instance()
-        asyncio.run_coroutine_threadsafe(
-            self.protocol.send_iot_descriptors(thing_manager.get_descriptors_json()),
-            self.loop
-        )
+        # from src.iot.thing_manager import ThingManager
+        # thing_manager = ThingManager.get_instance()
+        # asyncio.run_coroutine_threadsafe(
+        #     self.protocol.send_iot_descriptors(thing_manager.get_descriptors_json()),
+        #     self.loop
+        # )
 
     def _start_audio_streams(self):
         """启动音频流"""
@@ -961,11 +961,11 @@ class Application:
             )
             
             # 如果唤醒词检测器被禁用（内部故障），则更新配置
-            if not getattr(self.wake_word_detector, 'enabled', True):
-                logger.warning("唤醒词检测器被禁用（内部故障）")
-                self.config.update_config("USE_WAKE_WORD", False)
-                self.wake_word_detector = None
-                return
+            # if not getattr(self.wake_word_detector, 'enabled', True):
+            #     logger.warning("唤醒词检测器被禁用（内部故障）")
+            #     self.config.update_config("USE_WAKE_WORD", False)
+            #     self.wake_word_detector = None
+            #     return
             
             # 注册唤醒词检测回调
             self.wake_word_detector.on_detected(self._on_wake_word_detected)
@@ -1016,13 +1016,45 @@ class Application:
                 self.wake_word_detector.pause()
 
             # 开始连接并监听
-            self.set_device_state(DeviceState.CONNECTING)
+            # self.set_device_state(DeviceState.CONNECTING)
 
             # 尝试连接并打开音频通道
             asyncio.run_coroutine_threadsafe(
-                self._connect_and_start_listening(wake_word),
+                self.wake_word_detected(wake_word),
                 self.loop
             )
+            
+    async def wake_word_detected(self,wake_word):
+        """-------xc--------连接服务器并开始监听"""
+        # 首先尝试连接服务器
+        if not await self.protocol.connect():
+            logger.error("连接服务器失败")
+            self.alert("错误", "连接服务器失败")
+            self.set_device_state(DeviceState.IDLE)
+            # 恢复唤醒词检测
+            if self.wake_word_detector:
+                self.wake_word_detector.resume()
+            return
+
+        # 然后尝试打开音频通道
+        if not await self.protocol.open_audio_channel():
+            logger.error("打开音频通道失败")
+            self.set_device_state(DeviceState.IDLE)
+            self.alert("错误", "打开音频通道失败")
+            # 恢复唤醒词检测
+            if self.wake_word_detector:
+                self.wake_word_detector.resume()
+            return
+
+        # await self.protocol.send_wake_word_detected(wake_word)
+        # 设置为自动监听模式
+        self.keep_listening = True
+        # await self.protocol.send_start_listening(ListeningMode.AUTO_STOP)
+        self.set_device_state(DeviceState.LISTENING)
+        
+    async def _i_m_here_detected(self):
+        """-------xc--------播放 我在呢 提示音"""
+        pass
 
     async def _connect_and_start_listening(self,wake_word):
         """连接服务器并开始监听"""

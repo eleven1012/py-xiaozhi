@@ -103,7 +103,7 @@ class VolumeController:
             return int(volume_scalar * 100)
         except Exception as e:
             self.logger.warning(f"获取Windows音量失败: {e}")
-            return 70
+            return 40
     
     def _set_windows_volume(self, volume):
         """设置Windows音量"""
