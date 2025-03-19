@@ -3,6 +3,7 @@ import json
 import logging
 import threading
 import time
+import wave,pyaudio
 import sys
 from src.utils.system_info import setup_opus
 
@@ -1050,10 +1051,31 @@ class Application:
         # 设置为自动监听模式
         self.keep_listening = True
         # await self.protocol.send_start_listening(ListeningMode.AUTO_STOP)
+        await self._i_m_here_detected()
         self.set_device_state(DeviceState.LISTENING)
         
     async def _i_m_here_detected(self):
         """-------xc--------播放 我在呢 提示音"""
+        logger.info("-------xc--------播放 我在呢 提示音")
+        wf = wave.open(r"./wav/tts.wav", 'rb')
+        # 初始化 PyAudio
+        audio = pyaudio.PyAudio()
+        # 打开音频流
+        stream = audio.open(
+            format=audio.get_format_from_width(wf.getsampwidth()),
+            channels=wf.getnchannels(),
+            rate=wf.getframerate(),
+            output=True
+        )
+        data = wf.readframes(1024)  # 每次读取 1024 帧
+        while data:
+            stream.write(data)  # 写入音频流
+            data = wf.readframes(1024)
+
+        # 关闭音频流
+        stream.stop_stream()
+        stream.close()
+        audio.terminate()
         pass
 
     async def _connect_and_start_listening(self,wake_word):
